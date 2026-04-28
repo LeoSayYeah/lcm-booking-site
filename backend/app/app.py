@@ -165,7 +165,8 @@ def bookings():
         return jsonify({"error": "Bookings are Monday to Friday only"}), 400
 
     duration = sum(s["duration"] for s in selected)
-    price = sum(s["price"] for s in selected)
+    if price < 50:
+    return jsonify({"error": "Minimum booking is £50"}), 400
 
     current_bookings = get_day_bookings(data["date"])
 
@@ -437,7 +438,10 @@ def home():
   <div class="grid">
     <section class="card" id="booking">
       <h2>Book a Clean</h2>
-      <p class="note">Bookings are Monday to Friday, 8:15am to 2:00pm.</p>
+      <p class="note">
+Bookings are Monday to Friday, 8:15am to 2:00pm.<br>
+<strong>Minimum booking: £50</strong>
+</p>
 
       <input id="name" placeholder="Full name">
       <input id="phone" placeholder="Phone number">

@@ -87,13 +87,13 @@ def home():
           <h3>White Goods</h3>
           <div id="whitegoods"></div>
 
-          <button onclick="book()">Book Now</button>
+          <button type="button" onclick="book()">Book Now</button>
 
           <a href="https://wa.me/447565873770" target="_blank" style="text-decoration:none;">
             <button type="button">Message on WhatsApp</button>
           </a>
 
-          <button onclick="window.print()">Print Booking</button>
+          <button type="button" onclick="window.print()">Print Booking</button>
 
           <p id="result"></p>
         </div>
@@ -122,6 +122,9 @@ def home():
         }
 
         async function book(){
+          const result = document.getElementById('result');
+          result.innerText = 'Sending booking...';
+
           const checked = [...document.querySelectorAll('input[type=checkbox]:checked')].map(x => Number(x.value));
 
           const data = {
@@ -142,8 +145,8 @@ def home():
 
           const out = await res.json();
 
-          document.getElementById('result').innerText = res.ok
-            ? 'Booking received. Total £' + out.booking.total_price
+          result.innerText = res.ok
+            ? 'Booking received. Total £' + out.booking.total_price + '. Estimated finish time: ' + out.booking.end_time
             : out.error;
         }
 
@@ -159,18 +162,45 @@ def services():
 
 @app.route("/bookings", methods=["POST"])
 def bookings():
-    data = request.json
+    data = request.json or {}
+
+    if not data.get("name") or not data.get("address") or not data.get("postcode"):
+        return jsonify({"error": "Please enter your name, address and postcode"}), 400
+
     selected = [s for s in SERVICES if s["id"] in data.get("services", [])]
 
     if not selected:
         return jsonify({"error": "Please select at least one service"}), 400
 
+    try:
+        booking_date = datetime.strptime(data.get("date", ""), "%Y-%m-%d").date()
+        start_hour, start_minute = map(int, data.get("time", "").split(":"))
+        start_time = time(start_hour, start_minute)
+    except Exception:
+        return jsonify({"error": "Please enter a valid date and time"}), 400
+
+    if booking_date < LAUNCH_DATE:
+        return jsonify({"error": "Online bookings start from 18 August 2025"}), 400
+
+    if booking_date.weekday() > 4:
+        return jsonify({"error": "Bookings are Monday to Friday only"}), 400
+
+    total_duration = sum(s["duration"] for s in selected)
+    total_price = sum(s["price"] for s in selected)
+
+    start_datetime = datetime.combine(booking_date, start_time)
+    end_datetime = start_datetime + timedelta(minutes=total_duration)
+
+    if end_datetime.time() > WORK_END:
+        return jsonify({"error": "This booking would finish after 2pm. Please choose an earlier time."}), 400
+
     booking = {
         "id": len(BOOKINGS) + 1,
         **data,
         "services_selected": selected,
-        "total_price": sum(s["price"] for s in selected),
-        "total_duration": sum(s["duration"] for s in selected),
+        "total_price": total_price,
+        "total_duration": total_duration,
+        "end_time": end_datetime.strftime("%H:%M")
     }
 
     BOOKINGS.append(booking)

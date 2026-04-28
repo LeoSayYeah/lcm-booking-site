@@ -318,7 +318,7 @@ def admin_update():
     conn.close()
 
     return jsonify({"ok": True, "end_time": end_dt.strftime("%H:%M")})
-    @app.route("/")
+@app.route("/")
 def home():
     return """
 <!DOCTYPE html>

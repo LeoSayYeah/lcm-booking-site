@@ -2,14 +2,15 @@ services:
 - type: web
   name: lcm-frontend
   env: node
-  buildCommand: cd frontend && npm install && npm run build
-  startCommand: cd frontend && npm run preview
+  rootDir: frontend
+  buildCommand: npm install && npm run build
+  startCommand: npm run preview -- --host 0.0.0.0 --port $PORT
   plan: free
 
 - type: web
   name: lcm-backend
   env: python
-  plan: free
-  repoPath: backend
+  rootDir: backend
   buildCommand: pip install -r requirements.txt
   startCommand: gunicorn app.app:app
+  plan: free

@@ -3,6 +3,9 @@ from flask_cors import CORS
 from datetime import datetime, date, time, timedelta
 
 app = Flask(__name__)
+@app.route("/")
+def home():
+    return "Backend working!"
 CORS(app)
 
 LAUNCH_DATE = date(2025, 8, 18)

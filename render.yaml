@@ -2,7 +2,7 @@ services:
 - type: static_site
   name: lcm-frontend
   env: static
-  buildCommand: cd frontend && npm ci && npm run build
+  buildCommand: cd frontend && npm install && npm run build
   staticPublishPath: frontend/dist
 
 - type: web

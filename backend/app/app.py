@@ -40,6 +40,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS bookings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
+            phone TEXT,
             address TEXT,
             postcode TEXT,
             date TEXT,
@@ -51,6 +52,13 @@ def init_db():
             notes TEXT
         )
     """)
+
+    # Add phone column safely for older database versions
+    try:
+        c.execute("ALTER TABLE bookings ADD COLUMN phone TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -137,8 +145,8 @@ def services():
 def bookings():
     data = request.json or {}
 
-    if not data.get("name") or not data.get("address") or not data.get("postcode"):
-        return jsonify({"error": "Please enter your name, address and postcode"}), 400
+    if not data.get("name") or not data.get("phone") or not data.get("address") or not data.get("postcode"):
+        return jsonify({"error": "Please enter your name, phone number, address and postcode"}), 400
 
     if not data.get("date") or not data.get("time"):
         return jsonify({"error": "Please select a date and available time slot"}), 400
@@ -178,10 +186,11 @@ def bookings():
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
     c.execute("""
-        INSERT INTO bookings (name, address, postcode, date, start_time, end_time, duration, price, services, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bookings (name, phone, address, postcode, date, start_time, end_time, duration, price, services, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data["name"],
+        data["phone"],
         data["address"],
         data["postcode"].upper().strip(),
         data["date"],
@@ -199,6 +208,7 @@ def bookings():
         "ok": True,
         "booking": {
             "name": data["name"],
+            "phone": data["phone"],
             "address": data["address"],
             "postcode": data["postcode"].upper().strip(),
             "date": data["date"],
@@ -430,6 +440,7 @@ def home():
       <p class="note">Bookings are Monday to Friday, 8:15am to 2:00pm. Online bookings start from 18 August 2025.</p>
 
       <input id="name" placeholder="Full name">
+      <input id="phone" placeholder="Phone number">
       <input id="address" placeholder="Address">
       <input id="postcode" placeholder="Postcode">
       <textarea id="notes" placeholder="Notes / tailored booking details"></textarea>
@@ -567,6 +578,7 @@ async function book(){
 
   const data = {
     name: document.getElementById('name').value,
+    phone: document.getElementById('phone').value,
     address: document.getElementById('address').value,
     postcode: document.getElementById('postcode').value,
     notes: document.getElementById('notes').value,
@@ -589,6 +601,7 @@ async function book(){
     const whatsappMessage =
       `Hi LCM Oven & Carpet Cleaning, I have just made a booking request.%0A%0A` +
       `Name: ${data.name}%0A` +
+      `Phone: ${data.phone}%0A` +
       `Address: ${data.address}%0A` +
       `Postcode: ${data.postcode}%0A` +
       `Date: ${data.date}%0A` +

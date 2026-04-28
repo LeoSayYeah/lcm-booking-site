@@ -199,6 +199,8 @@ def bookings():
         "ok": True,
         "booking": {
             "name": data["name"],
+            "address": data["address"],
+            "postcode": data["postcode"].upper().strip(),
             "date": data["date"],
             "start_time": data["time"],
             "end_time": end_dt.strftime("%H:%M"),
@@ -285,6 +287,12 @@ def home():
     .btn-light{
       background:white;
       color:var(--blue);
+    }
+
+    .btn-whatsapp{
+      background:#25D366;
+      color:white;
+      margin-top:10px;
     }
 
     main{
@@ -577,9 +585,25 @@ async function book(){
 
   if(res.ok){
     result.className = "success";
-    result.innerText =
+
+    const whatsappMessage =
+      `Hi LCM Oven & Carpet Cleaning, I have just made a booking request.%0A%0A` +
+      `Name: ${data.name}%0A` +
+      `Address: ${data.address}%0A` +
+      `Postcode: ${data.postcode}%0A` +
+      `Date: ${data.date}%0A` +
+      `Time: ${data.time}%0A` +
+      `Services: ${out.booking.services}%0A` +
+      `Total: £${out.booking.total_price}%0A` +
+      `Estimated finish time: ${out.booking.end_time}`;
+
+    const whatsappUrl = `https://wa.me/447565873770?text=${whatsappMessage}`;
+
+    result.innerHTML =
       `Booking received. ${out.booking.services}. Total £${out.booking.total_price}. ` +
-      `Estimated finish time: ${out.booking.end_time}.`;
+      `Estimated finish time: ${out.booking.end_time}.<br><br>` +
+      `<a href="${whatsappUrl}" target="_blank" class="btn btn-whatsapp">Confirm booking on WhatsApp</a>`;
+
     loadTimes();
   } else {
     result.className = "error";

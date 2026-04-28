@@ -543,19 +543,19 @@ loadServices()
 </body>
 </html>
 """
-    @app.route("/admin")
-    def admin():
+@app.route("/admin")
+def admin():
     password = request.args.get("password")
 
     if password != ADMIN_PASSWORD:
         return """
         <html>
         <body style="font-family:Arial;padding:20px">
-          <h2>LCM Admin Login</h2>
-          <input id="pw" type="password" placeholder="Password">
-          <button onclick="location.href='/admin?password=' + document.getElementById('pw').value">
-            Login
-          </button>
+            <h2>LCM Admin Login</h2>
+            <input id="pw" type="password" placeholder="Password">
+            <button onclick="location.href='/admin?password=' + document.getElementById('pw').value">
+                Login
+            </button>
         </body>
         </html>
         """

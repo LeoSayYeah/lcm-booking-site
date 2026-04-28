@@ -1,9 +1,10 @@
 services:
-- type: static_site
+- type: web
   name: lcm-frontend
-  env: static
+  env: node
   buildCommand: cd frontend && npm install && npm run build
-  staticPublishPath: frontend/dist
+  startCommand: cd frontend && npm run preview
+  plan: free
 
 - type: web
   name: lcm-backend

@@ -8,6 +8,7 @@ LAUNCH_DATE = date(2025, 8, 18)
 WORK_START = time(8, 15)
 WORK_END = time(14, 0)
 MINIMUM_BOOKING = 50
+ADMIN_PASSWORD = "lcmadmin"
 
 SERVICES = [
     {"id": 1, "category": "Oven Cleaning", "name": "Single oven", "price": 50, "duration": 90},
@@ -503,10 +504,12 @@ def home():
         <a href="https://www.facebook.com/share/17FSCs5xqU/" target="_blank">Facebook</a><br>
         <a href="https://www.instagram.com/lcmovencleaning?igsh=MW44NmlpOGRiNW9rMQ==" target="_blank">Instagram</a>
       </p>
+
+      <h3>Admin</h3>
+      <p><a href="/admin">Admin Dashboard</a></p>
     </aside>
   </div>
 </main>
-
 <footer>
   © LCM Oven & Carpet Cleaning
 </footer>
@@ -635,6 +638,94 @@ loadServices();
 
 </body>
 </html>
+    """
+
+
+# =========================
+# ADMIN DASHBOARD
+# =========================
+@app.route("/admin")
+def admin():
+    password = request.args.get("password")
+
+    if password != ADMIN_PASSWORD:
+        return """
+        <html>
+        <body style="font-family:Arial;padding:20px">
+          <h2>LCM Admin Login</h2>
+          <input id="pw" type="password" placeholder="Password">
+          <button onclick="location.href='/admin?password=' + document.getElementById('pw').value">
+            Login
+          </button>
+        </body>
+        </html>
+        """
+
+    selected_date = request.args.get("date", "")
+
+    conn = sqlite3.connect("bookings.db")
+    c = conn.cursor()
+
+    if selected_date:
+        c.execute("""
+            SELECT name, phone, address, postcode, date, start_time, end_time, duration, price, services, notes
+            FROM bookings
+            WHERE date=?
+            ORDER BY start_time
+        """, (selected_date,))
+    else:
+        c.execute("""
+            SELECT name, phone, address, postcode, date, start_time, end_time, duration, price, services, notes
+            FROM bookings
+            ORDER BY date, start_time
+        """)
+
+    rows = c.fetchall()
+    conn.close()
+
+    booking_cards = ""
+
+    for b in rows:
+        phone_clean = b[1].replace(" ", "")
+        booking_cards += f"""
+        <div class="booking">
+          <h3>{b[5]} - {b[6]} | {b[0]}</h3>
+          <p><strong>Date:</strong> {b[4]}</p>
+          <p><strong>Phone:</strong> {b[1]}</p>
+          <p><strong>Address:</strong> {b[2]}</p>
+          <p><strong>Postcode:</strong> {b[3]}</p>
+          <p><strong>Services:</strong> {b[9]}</p>
+          <p><strong>Total:</strong> £{b[8]}</p>
+          <p><strong>Duration:</strong> {b[7]} mins</p>
+          <p><strong>Notes:</strong> {b[10] or ""}</p>
+          <a class="whatsapp" href="https://wa.me/{phone_clean}" target="_blank">Message Customer</a>
+        </div>
+        """
+
+    return f"""
+    <html>
+    <head>
+      <title>LCM Admin</title>
+      <style>
+        body{{font-family:Arial;background:#f4f8fc;margin:0}}
+        header{{background:#0e3a67;color:white;padding:20px;text-align:center}}
+        main{{max-width:1000px;margin:auto;padding:20px}}
+        .booking{{background:white;padding:15px;margin:10px 0;border-radius:12px}}
+        .whatsapp{{background:#25D366;color:white;padding:8px 12px;border-radius:6px;text-decoration:none}}
+      </style>
+    </head>
+    <body>
+      <header><h1>LCM Admin Dashboard</h1></header>
+      <main>
+        <form>
+          <input type="hidden" name="password" value="{ADMIN_PASSWORD}">
+          <input type="date" name="date" value="{selected_date}">
+          <button type="submit">Filter</button>
+        </form>
+        {booking_cards or "<p>No bookings found</p>"}
+      </main>
+    </body>
+    </html>
     """
 
 

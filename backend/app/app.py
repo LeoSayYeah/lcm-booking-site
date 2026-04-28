@@ -11,7 +11,7 @@ SERVICES = [
     {"id": 2, "name": "Double oven", "price": 75, "duration": 120},
     {"id": 3, "name": "Ceramic hob range", "price": 125, "duration": 150},
     {"id": 4, "name": "Gas hob range", "price": 150, "duration": 150},
-    {"id": 5, "name": "4 ring hob", "price": 25, "duration": 30},
+    {"id": 5, "name": "4 ring hob", "price": 20, "duration": 30},
     {"id": 6, "name": "Extractor", "price": 20, "duration": 30},
 
     {"id": 7, "name": "1 room carpet", "price": 50, "duration": 60},

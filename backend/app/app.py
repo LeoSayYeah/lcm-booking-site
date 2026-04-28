@@ -32,7 +32,6 @@ SERVICES = [
 
 BOOKINGS = []
 
-
 @app.route("/")
 def home():
     return """
@@ -41,70 +40,18 @@ def home():
       <title>LCM Oven & Carpet Cleaning</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
-        body{
-          font-family: Arial, sans-serif;
-          margin:0;
-          background:#f5f8fb;
-          color:#102a43;
-        }
-        header{
-          background:#0e3a67;
-          color:white;
-          padding:30px 20px;
-          text-align:center;
-        }
+        body{font-family:Arial;margin:0;background:#f5f8fb;color:#102a43}
+        header{background:#0e3a67;color:white;padding:30px 20px;text-align:center}
         h1{margin:0;font-size:30px}
         .gold{color:#d4af37;font-weight:bold}
-        main{
-          padding:20px;
-          max-width:900px;
-          margin:auto;
-        }
-        .card{
-          background:white;
-          padding:20px;
-          border-radius:14px;
-          margin:15px 0;
-          box-shadow:0 2px 8px #0001;
-        }
-        input,textarea,button{
-          width:100%;
-          padding:12px;
-          margin:6px 0;
-          border-radius:8px;
-          border:1px solid #ccc;
-          font-size:15px;
-        }
-        button{
-          background:#d4af37;
-          font-weight:bold;
-          border:0;
-          cursor:pointer;
-        }
-        button:hover{opacity:.9}
-        label{
-          display:block;
-          margin:7px 0;
-          padding:8px;
-          background:#f7fafc;
-          border-radius:8px;
-        }
-        h3{
-          margin-top:24px;
-          color:#0e3a67;
-          border-bottom:2px solid #d4af37;
-          padding-bottom:5px;
-        }
-        .note{
-          font-size:13px;
-          color:#666;
-          margin-bottom:10px;
-        }
-        #result{
-          font-weight:bold;
-          margin-top:12px;
-          color:#0e3a67;
-        }
+        main{padding:20px;max-width:900px;margin:auto}
+        .card{background:white;padding:20px;border-radius:14px;margin:15px 0;box-shadow:0 2px 8px #0001}
+        input,textarea,button{width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #ccc;font-size:15px}
+        button{background:#d4af37;font-weight:bold;border:0;cursor:pointer}
+        label{display:block;margin:7px 0;padding:8px;background:#f7fafc;border-radius:8px}
+        h3{margin-top:24px;color:#0e3a67;border-bottom:2px solid #d4af37;padding-bottom:5px}
+        .note{font-size:13px;color:#666;margin-bottom:10px}
+        #result{font-weight:bold;margin-top:12px;color:#0e3a67}
       </style>
     </head>
 
@@ -118,9 +65,6 @@ def home():
       <main>
         <div class="card">
           <h2>Book a Clean</h2>
-          <p>
-            Online bookings available Monday to Friday, 8:15am to 2:00pm.
-          </p>
 
           <input id="name" placeholder="Full name">
           <input id="address" placeholder="Address">
@@ -133,17 +77,22 @@ def home():
           <div id="ovens"></div>
 
           <h3>Carpet Cleaning</h3>
-          <p class="note">Carpet prices may vary depending on size.</p>
+          <p class="note">Carpet prices may vary depending on size</p>
           <div id="carpets"></div>
 
           <h3>Sofa Cleaning</h3>
-          <p class="note">Sofa prices may vary depending on size.</p>
+          <p class="note">Sofa prices may vary depending on size</p>
           <div id="sofas"></div>
 
           <h3>White Goods</h3>
           <div id="whitegoods"></div>
 
           <button onclick="book()">Book Now</button>
+
+          <a href="https://wa.me/447565873770" target="_blank" style="text-decoration:none;">
+            <button type="button">Message on WhatsApp</button>
+          </a>
+
           <button onclick="window.print()">Print Booking</button>
 
           <p id="result"></p>
@@ -155,29 +104,25 @@ def home():
           const res = await fetch('/services');
           const services = await res.json();
 
-          const ovens = services.filter(s => s.id >= 1 && s.id <= 6);
+          const ovens = services.filter(s => s.id <= 6);
           const carpets = services.filter(s => s.id >= 7 && s.id <= 11);
           const sofas = services.filter(s => s.id >= 12 && s.id <= 15);
-          const whitegoods = services.filter(s => s.id >= 16);
+          const white = services.filter(s => s.id >= 16);
 
-          function render(list, elementId){
-            document.getElementById(elementId).innerHTML = list.map(s =>
-              `<label>
-                <input type="checkbox" value="${s.id}">
-                ${s.name} - £${s.price}
-              </label>`
+          function render(list, el){
+            document.getElementById(el).innerHTML = list.map(s =>
+              `<label><input type="checkbox" value="${s.id}"> ${s.name} - £${s.price}</label>`
             ).join('');
           }
 
           render(ovens, "ovens");
           render(carpets, "carpets");
           render(sofas, "sofas");
-          render(whitegoods, "whitegoods");
+          render(white, "whitegoods");
         }
 
         async function book(){
-          const checked = [...document.querySelectorAll('input[type=checkbox]:checked')]
-            .map(x => Number(x.value));
+          const checked = [...document.querySelectorAll('input[type=checkbox]:checked')].map(x => Number(x.value));
 
           const data = {
             name: document.getElementById('name').value,
@@ -198,8 +143,7 @@ def home():
           const out = await res.json();
 
           document.getElementById('result').innerText = res.ok
-            ? 'Booking received. Total £' + out.booking.total_price +
-              '. Estimated duration: ' + out.booking.total_duration + ' minutes.'
+            ? 'Booking received. Total £' + out.booking.total_price
             : out.error;
         }
 
@@ -209,11 +153,9 @@ def home():
     </html>
     """
 
-
 @app.route("/services")
 def services():
     return jsonify(SERVICES)
-
 
 @app.route("/bookings", methods=["POST"])
 def bookings():
@@ -223,36 +165,12 @@ def bookings():
     if not selected:
         return jsonify({"error": "Please select at least one service"}), 400
 
-    # Basic date and time checks
-    try:
-        booking_date = datetime.strptime(data.get("date", ""), "%Y-%m-%d").date()
-        start_hour, start_minute = map(int, data.get("time", "").split(":"))
-        start_time = time(start_hour, start_minute)
-    except Exception:
-        return jsonify({"error": "Please enter a valid date and time"}), 400
-
-    if booking_date < LAUNCH_DATE:
-        return jsonify({"error": "Online bookings start from 18 August 2025"}), 400
-
-    if booking_date.weekday() > 4:
-        return jsonify({"error": "Bookings are Monday to Friday only"}), 400
-
-    total_duration = sum(s["duration"] for s in selected)
-    total_price = sum(s["price"] for s in selected)
-
-    start_datetime = datetime.combine(booking_date, start_time)
-    end_datetime = start_datetime + timedelta(minutes=total_duration)
-
-    if end_datetime.time() > WORK_END:
-        return jsonify({"error": "This booking would finish after 2pm. Please choose an earlier time."}), 400
-
     booking = {
         "id": len(BOOKINGS) + 1,
         **data,
         "services_selected": selected,
-        "total_price": total_price,
-        "total_duration": total_duration,
-        "end_time": end_datetime.strftime("%H:%M")
+        "total_price": sum(s["price"] for s in selected),
+        "total_duration": sum(s["duration"] for s in selected),
     }
 
     BOOKINGS.append(booking)

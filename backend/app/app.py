@@ -7,6 +7,7 @@ app = Flask(__name__)
 LAUNCH_DATE = date(2025, 8, 18)
 WORK_START = time(8, 15)
 WORK_END = time(14, 0)
+MINIMUM_BOOKING = 50
 
 SERVICES = [
     {"id": 1, "category": "Oven Cleaning", "name": "Single oven", "price": 50, "duration": 90},
@@ -81,7 +82,6 @@ def generate_slots(duration, selected_date):
 
     while True:
         end = current + timedelta(minutes=duration)
-
         if end.time() > WORK_END:
             break
 
@@ -122,10 +122,8 @@ def availability():
     slots = generate_slots(duration, selected_date)
 
     available = []
-
     for slot in slots:
         slot_time = datetime.strptime(slot, "%H:%M").time()
-
         if is_available(slot_time, duration, bookings):
             available.append(slot)
 
@@ -165,8 +163,10 @@ def bookings():
         return jsonify({"error": "Bookings are Monday to Friday only"}), 400
 
     duration = sum(s["duration"] for s in selected)
-    if price < 50:
-    return jsonify({"error": "Minimum booking is £50"}), 400
+    price = sum(s["price"] for s in selected)
+
+    if price < MINIMUM_BOOKING:
+        return jsonify({"error": "Minimum booking is £50"}), 400
 
     current_bookings = get_day_bookings(data["date"])
 
@@ -183,7 +183,6 @@ def bookings():
 
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
-
     c.execute("""
         INSERT INTO bookings (
             name, phone, address, postcode, date, start_time, end_time,
@@ -439,9 +438,9 @@ def home():
     <section class="card" id="booking">
       <h2>Book a Clean</h2>
       <p class="note">
-Bookings are Monday to Friday, 8:15am to 2:00pm.<br>
-<strong>Minimum booking: £50</strong>
-</p>
+        Bookings are Monday to Friday, 8:15am to 2:00pm.<br>
+        <strong>Minimum booking: £50</strong>
+      </p>
 
       <input id="name" placeholder="Full name">
       <input id="phone" placeholder="Phone number">

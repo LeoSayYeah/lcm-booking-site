@@ -1,0 +1,14 @@
+services:
+- type: static_site
+  name: lcm-frontend
+  env: static
+  buildCommand: cd frontend && npm ci && npm run build
+  staticPublishPath: frontend/dist
+
+- type: web
+  name: lcm-backend
+  env: python
+  plan: free
+  repoPath: backend
+  buildCommand: pip install -r requirements.txt
+  startCommand: gunicorn app.app:app

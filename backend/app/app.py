@@ -1,11 +1,36 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, date, time, timedelta
+import sqlite3
 
 app = Flask(__name__)
 
 LAUNCH_DATE = date(2025, 8, 18)
+WORK_START = time(8, 15)
 WORK_END = time(14, 0)
 
+# ---------- DATABASE ----------
+def init_db():
+    conn = sqlite3.connect("bookings.db")
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS bookings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            address TEXT,
+            postcode TEXT,
+            date TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            duration INTEGER,
+            price INTEGER
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# ---------- SERVICES ----------
 SERVICES = [
     {"id": 1, "name": "Single oven", "price": 50, "duration": 90},
     {"id": 2, "name": "Double oven", "price": 75, "duration": 120},
@@ -30,179 +55,197 @@ SERVICES = [
     {"id": 18, "name": "Washing machine + dishwasher", "price": 50, "duration": 60},
 ]
 
-BOOKINGS = []
+# ---------- HELPERS ----------
+def get_day_bookings(selected_date):
+    conn = sqlite3.connect("bookings.db")
+    c = conn.cursor()
+    c.execute("SELECT start_time, end_time FROM bookings WHERE date=?", (selected_date,))
+    rows = c.fetchall()
+    conn.close()
+
+    bookings = []
+    for r in rows:
+        bookings.append({
+            "start": datetime.strptime(r[0], "%H:%M").time(),
+            "end": datetime.strptime(r[1], "%H:%M").time()
+        })
+    return bookings
+
+
+def generate_slots(duration, selected_date):
+    slots = []
+    current = datetime.combine(selected_date, WORK_START)
+
+    while True:
+        end = current + timedelta(minutes=duration)
+        if end.time() > WORK_END:
+            break
+
+        slots.append(current.time().strftime("%H:%M"))
+        current += timedelta(minutes=15)
+
+    return slots
+
+
+def is_available(start_time, duration, bookings):
+    start_dt = datetime.combine(date.today(), start_time)
+    end_dt = start_dt + timedelta(minutes=duration)
+
+    for b in bookings:
+        b_start = datetime.combine(date.today(), b["start"])
+        b_end = datetime.combine(date.today(), b["end"])
+
+        if start_dt < b_end and end_dt > b_start:
+            return False
+
+    return True
+
+
+# ---------- ROUTES ----------
+
+@app.route("/availability")
+def availability():
+    date_str = request.args.get("date")
+    duration = int(request.args.get("duration", 60))
+
+    try:
+        selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except:
+        return jsonify([])
+
+    if selected_date < LAUNCH_DATE or selected_date.weekday() > 4:
+        return jsonify([])
+
+    bookings = get_day_bookings(date_str)
+    slots = generate_slots(duration, selected_date)
+
+    available = []
+    for s in slots:
+        t = datetime.strptime(s, "%H:%M").time()
+        if is_available(t, duration, bookings):
+            available.append(s)
+
+    return jsonify(available)
+
 
 @app.route("/")
 def home():
     return """
     <html>
     <head>
-      <title>LCM Oven & Carpet Cleaning</title>
+      <title>LCM Booking</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body{font-family:Arial;margin:0;background:#f5f8fb;color:#102a43}
-        header{background:#0e3a67;color:white;padding:30px 20px;text-align:center}
-        h1{margin:0;font-size:30px}
-        .gold{color:#d4af37;font-weight:bold}
-        main{padding:20px;max-width:900px;margin:auto}
-        .card{background:white;padding:20px;border-radius:14px;margin:15px 0;box-shadow:0 2px 8px #0001}
-        input,textarea,button{width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #ccc;font-size:15px}
-        button{background:#d4af37;font-weight:bold;border:0;cursor:pointer}
-        label{display:block;margin:7px 0;padding:8px;background:#f7fafc;border-radius:8px}
-        h3{margin-top:24px;color:#0e3a67;border-bottom:2px solid #d4af37;padding-bottom:5px}
-        .note{font-size:13px;color:#666;margin-bottom:10px}
-        #result{font-weight:bold;margin-top:12px;color:#0e3a67}
-      </style>
     </head>
+    <body style="font-family:Arial;padding:20px">
 
-    <body>
-      <header>
-        <h1>LCM Oven & Carpet Cleaning</h1>
-        <p class="gold">Let Me Do The Dirty Work</p>
-        <p>Call / WhatsApp: 07565 873770</p>
-      </header>
+    <h2>Book a Clean</h2>
 
-      <main>
-        <div class="card">
-          <h2>Book a Clean</h2>
+    <input id="name" placeholder="Name"><br><br>
+    <input id="address" placeholder="Address"><br><br>
+    <input id="postcode" placeholder="Postcode"><br><br>
 
-          <input id="name" placeholder="Full name">
-          <input id="address" placeholder="Address">
-          <input id="postcode" placeholder="Postcode">
-          <input id="date" type="date">
-          <input id="time" type="time">
-          <textarea id="notes" placeholder="Notes / tailored booking"></textarea>
+    <input id="date" type="date" onchange="loadTimes()"><br><br>
 
-          <h3>Oven Cleaning</h3>
-          <div id="ovens"></div>
+    <select id="time">
+      <option>Select a date first</option>
+    </select><br><br>
 
-          <h3>Carpet Cleaning</h3>
-          <p class="note">Carpet prices may vary depending on size</p>
-          <div id="carpets"></div>
+    <div id="services"></div><br>
 
-          <h3>Sofa Cleaning</h3>
-          <p class="note">Sofa prices may vary depending on size</p>
-          <div id="sofas"></div>
+    <button onclick="book()">Book</button>
 
-          <h3>White Goods</h3>
-          <div id="whitegoods"></div>
+    <p id="result"></p>
 
-          <button type="button" onclick="book()">Book Now</button>
+    <script>
+    let selectedServices = []
 
-          <a href="https://wa.me/447565873770" target="_blank" style="text-decoration:none;">
-            <button type="button">Message on WhatsApp</button>
-          </a>
+    async function loadServices(){
+        const res = await fetch('/services')
+        const data = await res.json()
 
-          <button type="button" onclick="window.print()">Print Booking</button>
+        document.getElementById('services').innerHTML =
+            data.map(s =>
+              `<label><input type="checkbox" value="${s.id}" onchange="updateServices()"> ${s.name} £${s.price}</label>`
+            ).join('')
+    }
 
-          <p id="result"></p>
-        </div>
-      </main>
+    function updateServices(){
+        selectedServices = [...document.querySelectorAll('input[type=checkbox]:checked')]
+            .map(x => Number(x.value))
+    }
 
-      <script>
-        async function loadServices(){
-          const res = await fetch('/services');
-          const services = await res.json();
-
-          const ovens = services.filter(s => s.id <= 6);
-          const carpets = services.filter(s => s.id >= 7 && s.id <= 11);
-          const sofas = services.filter(s => s.id >= 12 && s.id <= 15);
-          const white = services.filter(s => s.id >= 16);
-
-          function render(list, el){
-            document.getElementById(el).innerHTML = list.map(s =>
-              `<label><input type="checkbox" value="${s.id}"> ${s.name} - £${s.price}</label>`
-            ).join('');
-          }
-
-          render(ovens, "ovens");
-          render(carpets, "carpets");
-          render(sofas, "sofas");
-          render(white, "whitegoods");
+    async function loadTimes(){
+        if(selectedServices.length === 0){
+            alert("Select services first")
+            return
         }
 
-        async function book(){
-          const result = document.getElementById('result');
-          result.innerText = 'Sending booking...';
+        const duration = selectedServices.reduce((sum,id)=>{
+            const s = SERVICES.find(x=>x.id===id)
+            return sum + s.duration
+        },0)
 
-          const checked = [...document.querySelectorAll('input[type=checkbox]:checked')].map(x => Number(x.value));
+        const date = document.getElementById('date').value
+        const res = await fetch(`/availability?date=${date}&duration=${duration}`)
+        const times = await res.json()
 
-          const data = {
-            name: document.getElementById('name').value,
-            address: document.getElementById('address').value,
-            postcode: document.getElementById('postcode').value,
-            date: document.getElementById('date').value,
-            time: document.getElementById('time').value,
-            notes: document.getElementById('notes').value,
-            services: checked
-          };
+        document.getElementById('time').innerHTML =
+            times.map(t => `<option>${t}</option>`).join('')
+    }
 
-          const res = await fetch('/bookings', {
+    async function book(){
+        const res = await fetch('/bookings', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(data)
-          });
+            body:JSON.stringify({
+                name: name.value,
+                address: address.value,
+                postcode: postcode.value,
+                date: date.value,
+                time: time.value,
+                services: selectedServices
+            })
+        })
 
-          const out = await res.json();
+        const out = await res.json()
+        result.innerText = out.ok ? "Booked!" : out.error
+    }
 
-          result.innerText = res.ok
-            ? 'Booking received. Total £' + out.booking.total_price + '. Estimated finish time: ' + out.booking.end_time
-            : out.error;
-        }
+    loadServices()
+    </script>
 
-        loadServices();
-      </script>
     </body>
     </html>
     """
+
 
 @app.route("/services")
 def services():
     return jsonify(SERVICES)
 
+
 @app.route("/bookings", methods=["POST"])
 def bookings():
-    data = request.json or {}
+    data = request.json
 
-    if not data.get("name") or not data.get("address") or not data.get("postcode"):
-        return jsonify({"error": "Please enter your name, address and postcode"}), 400
+    selected = [s for s in SERVICES if s["id"] in data["services"]]
+    duration = sum(s["duration"] for s in selected)
+    price = sum(s["price"] for s in selected)
 
-    selected = [s for s in SERVICES if s["id"] in data.get("services", [])]
+    start = datetime.strptime(data["time"], "%H:%M")
+    end = start + timedelta(minutes=duration)
 
-    if not selected:
-        return jsonify({"error": "Please select at least one service"}), 400
+    conn = sqlite3.connect("bookings.db")
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO bookings (name,address,postcode,date,start_time,end_time,duration,price)
+        VALUES (?,?,?,?,?,?,?,?)
+    """, (
+        data["name"], data["address"], data["postcode"],
+        data["date"], data["time"], end.strftime("%H:%M"),
+        duration, price
+    ))
+    conn.commit()
+    conn.close()
 
-    try:
-        booking_date = datetime.strptime(data.get("date", ""), "%Y-%m-%d").date()
-        start_hour, start_minute = map(int, data.get("time", "").split(":"))
-        start_time = time(start_hour, start_minute)
-    except Exception:
-        return jsonify({"error": "Please enter a valid date and time"}), 400
-
-    if booking_date < LAUNCH_DATE:
-        return jsonify({"error": "Online bookings start from 18 August 2025"}), 400
-
-    if booking_date.weekday() > 4:
-        return jsonify({"error": "Bookings are Monday to Friday only"}), 400
-
-    total_duration = sum(s["duration"] for s in selected)
-    total_price = sum(s["price"] for s in selected)
-
-    start_datetime = datetime.combine(booking_date, start_time)
-    end_datetime = start_datetime + timedelta(minutes=total_duration)
-
-    if end_datetime.time() > WORK_END:
-        return jsonify({"error": "This booking would finish after 2pm. Please choose an earlier time."}), 400
-
-    booking = {
-        "id": len(BOOKINGS) + 1,
-        **data,
-        "services_selected": selected,
-        "total_price": total_price,
-        "total_duration": total_duration,
-        "end_time": end_datetime.strftime("%H:%M")
-    }
-
-    BOOKINGS.append(booking)
-
-    return jsonify({"ok": True, "booking": booking})
+    return jsonify({"ok": True})

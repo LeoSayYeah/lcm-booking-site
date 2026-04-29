@@ -192,8 +192,11 @@ def home():
 
   <div class="card">
     <h3>Date & Time</h3>
-    <input id="date" type="date">
-    <input id="time" type="time">
+    <input id="date" type="date" onchange="loadTimes()">
+
+<select id="time">
+  <option value="">Select services and date first</option>
+</select>
   </div>
 
   <div class="card">

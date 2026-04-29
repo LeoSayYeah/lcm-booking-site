@@ -724,7 +724,7 @@ if current_time < WORK_END:
     </div>
     """
 
-    return f"""
+        return f"""
     <html>
     <head>
       <title>LCM Admin</title>
@@ -753,3 +753,8 @@ if current_time < WORK_END:
 
 if __name__ == "__main__":
     app.run()
+import os
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)

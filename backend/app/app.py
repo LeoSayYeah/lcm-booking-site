@@ -646,7 +646,8 @@ loadServices();
 # =========================
 @app.route("/admin")
 def admin():
-    password = request.args.get("password")
+    password = 
+request.args.get("password")
 
     if password != ADMIN_PASSWORD:
         return """

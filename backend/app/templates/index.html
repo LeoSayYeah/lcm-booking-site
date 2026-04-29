@@ -199,7 +199,7 @@ async function book(){
     services: selected
   };
 
-  const res = await fetch('/bookings', {   // IMPORTANT: your backend uses /bookings
+  const res = await fetch('/book', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(data)

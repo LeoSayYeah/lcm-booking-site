@@ -683,24 +683,46 @@ def admin():
     rows = c.fetchall()
     conn.close()
 
-    booking_cards = ""
+    timeline = ""
+current_time = WORK_START
 
-    for b in rows:
-        phone_clean = b[1].replace(" ", "")
-        booking_cards += f"""
-        <div class="booking">
-          <h3>{b[5]} - {b[6]} | {b[0]}</h3>
-          <p><strong>Date:</strong> {b[4]}</p>
-          <p><strong>Phone:</strong> {b[1]}</p>
-          <p><strong>Address:</strong> {b[2]}</p>
-          <p><strong>Postcode:</strong> {b[3]}</p>
-          <p><strong>Services:</strong> {b[9]}</p>
-          <p><strong>Total:</strong> £{b[8]}</p>
-          <p><strong>Duration:</strong> {b[7]} mins</p>
-          <p><strong>Notes:</strong> {b[10] or ""}</p>
-          <a class="whatsapp" href="https://wa.me/{phone_clean}" target="_blank">Message Customer</a>
+for b in rows:
+    start = datetime.strptime(b[5], "%H:%M").time()
+
+    # gap before booking
+    if start > current_time:
+        timeline += f"""
+        <div style="padding:10px;margin:8px 0;background:#e2e8f0;border-radius:8px;">
+            Free slot: {current_time.strftime('%H:%M')} → {start.strftime('%H:%M')}
         </div>
         """
+
+    phone_clean = b[1].replace(" ", "")
+
+    timeline += f"""
+    <div style="background:white;padding:15px;margin:10px 0;border-radius:12px;border-left:6px solid #d4af37">
+      <h3>{b[5]} - {b[6]} | {b[0]}</h3>
+      <p><strong>Address:</strong> {b[2]}</p>
+      <p><strong>Postcode:</strong> {b[3]}</p>
+      <p><strong>Services:</strong> {b[9]}</p>
+      <p><strong>Total:</strong> £{b[8]}</p>
+
+      <a href="https://wa.me/{phone_clean}" target="_blank"
+         style="background:#25D366;color:white;padding:8px 12px;border-radius:6px;text-decoration:none;">
+         WhatsApp
+      </a>
+    </div>
+    """
+
+    current_time = datetime.strptime(b[6], "%H:%M").time()
+
+# gap at end of day
+if current_time < WORK_END:
+    timeline += f"""
+    <div style="padding:10px;margin:8px 0;background:#e2e8f0;border-radius:8px;">
+        Free slot: {current_time.strftime('%H:%M')} → {WORK_END.strftime('%H:%M')}
+    </div>
+    """
 
     return f"""
     <html>
@@ -722,7 +744,7 @@ def admin():
           <input type="date" name="date" value="{selected_date}">
           <button type="submit">Filter</button>
         </form>
-        {booking_cards or "<p>No bookings found</p>"}
+        {timeline or "<p>No bookings for this day</p>"}
       </main>
     </body>
     </html>

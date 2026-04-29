@@ -107,77 +107,26 @@ def home():
 <head>
   <title>LCM Oven & Carpet Cleaning</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <style>
-    body{
-      font-family:Arial;
-      margin:0;
-      background:#f4f8fc;
-    }
-
-    header{
-      background:#0e3a67;
-      color:white;
-      padding:25px;
-      text-align:center;
-    }
-
-    h1{margin:0}
-
-    .container{
-      max-width:900px;
-      margin:auto;
-      padding:20px;
-    }
-
-    .card{
-      background:white;
-      padding:20px;
-      border-radius:12px;
-      margin-bottom:20px;
-    }
-
-    input, select, textarea{
-      width:100%;
-      padding:12px;
-      margin:6px 0;
-      border-radius:8px;
-      border:1px solid #ccc;
-    }
-
-    button{
-      background:#d4af37;
-      border:none;
-      padding:12px;
-      border-radius:10px;
-      font-weight:bold;
-      width:100%;
-      margin-top:10px;
-    }
-
-    .service{
-      padding:10px;
-      border:1px solid #ddd;
-      margin:5px 0;
-      border-radius:8px;
-    }
-
-    #result{
-      margin-top:10px;
-      font-weight:bold;
-    }
+    body{font-family:Arial;margin:0;background:#f4f8fc;color:#102a43}
+    header{background:#0e3a67;color:white;text-align:center;padding:28px 15px}
+    .container{max-width:900px;margin:auto;padding:20px}
+    .card{background:white;border-radius:18px;padding:20px;margin:18px 0;box-shadow:0 6px 18px #0001}
+    input,select,textarea,button{width:100%;padding:13px;margin:7px 0;border-radius:12px;border:1px solid #ccc;font-size:15px}
+    button{background:#d4af37;border:0;font-weight:bold}
+    .service{display:block;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;margin:8px 0;border-radius:10px}
+    .note{font-size:13px;color:#64748b}
+    #result{font-weight:bold;margin-top:12px}
   </style>
 </head>
-
 <body>
 
 <header>
   <h1>LCM Oven & Carpet Cleaning</h1>
-  <p>Book your clean online</p>
+  <p>Let Me Do The Dirty Work</p>
 </header>
 
 <div class="container">
-
   <div class="card">
     <input id="name" placeholder="Full name">
     <input id="phone" placeholder="Phone number">
@@ -186,104 +135,111 @@ def home():
   </div>
 
   <div class="card">
-    <h3>Services</h3>
+    <h2>Services</h2>
+    <p class="note"><strong>Minimum booking: £50</strong></p>
     <div id="services"></div>
   </div>
 
   <div class="card">
-    <h3>Date & Time</h3>
-    <input id="date" type="date" onchange="loadTimes()">
-
-<select id="time">
-  <option value="">Select services and date first</option>
-</select>
+    <h2>Date & Time</h2>
+    <input id="dateInput" type="date" onchange="loadTimes()">
+    <select id="timeInput">
+      <option value="">Select services and date first</option>
+    </select>
   </div>
 
   <div class="card">
+    <p id="summary">Select services to see total.</p>
     <button onclick="book()">Book Now</button>
     <p id="result"></p>
   </div>
-
 </div>
 
 <script>
-let services = []
-let selected = []
+let services = [];
+let selected = [];
 
 async function loadServices(){
-  const res = await fetch('/services')
-  services = await res.json()
+  const res = await fetch('/services');
+  services = await res.json();
 
-  document.getElementById('services').innerHTML =
-    services.map(s => `
-      <div class="service">
-        <input type="checkbox" value="${s.id}" onchange="update()">
-        ${s.name} (£${s.price})
-      </div>
-    `).join('')
+  document.getElementById('services').innerHTML = services.map(s => `
+    <label class="service">
+      <input type="checkbox" value="${s.id}" onchange="updateServices()">
+      ${s.name} - £${s.price}
+    </label>
+  `).join('');
 }
 
-function update(){
-  selected = [...document.querySelectorAll('input[type=checkbox]:checked')]
-    .map(x => Number(x.value))
+function updateServices(){
+  selected = Array.from(document.querySelectorAll('input[type=checkbox]:checked'))
+    .map(x => Number(x.value));
 
-  loadTimes()
+  const chosen = services.filter(s => selected.includes(s.id));
+  const total = chosen.reduce((sum, s) => sum + s.price, 0);
+  const duration = chosen.reduce((sum, s) => sum + s.duration, 0);
+
+  document.getElementById('summary').innerText =
+    chosen.length ? `Total: £${total} · Approx ${duration} mins` : 'Select services to see total.';
+
+  loadTimes();
 }
-}
+
 async function loadTimes(){
-  const date = document.getElementById('date').value
-  const chosen = services.filter(s => selected.includes(s.id))
-  const duration = chosen.reduce((total, s) => total + s.duration, 0)
+  const dateValue = document.getElementById('dateInput').value;
+  const chosen = services.filter(s => selected.includes(s.id));
+  const duration = chosen.reduce((sum, s) => sum + s.duration, 0);
 
-  if(!date || duration === 0){
-    document.getElementById('time').innerHTML =
-      '<option value="">Select services and date first</option>'
-    return
+  if(!dateValue || duration === 0){
+    document.getElementById('timeInput').innerHTML =
+      '<option value="">Select services and date first</option>';
+    return;
   }
 
-  const res = await fetch(`/availability?date=${date}&duration=${duration}`)
-  const times = await res.json()
+  const res = await fetch(`/availability?date=${dateValue}&duration=${duration}`);
+  const times = await res.json();
 
-  document.getElementById('time').innerHTML =
+  document.getElementById('timeInput').innerHTML =
     times.length
       ? times.map(t => `<option value="${t}">${t}</option>`).join('')
-      : '<option value="">No available slots</option>'
+      : '<option value="">No available slots</option>';
 }
-async function book(){
-  const result = document.getElementById('result')
 
+async function book(){
   const data = {
     name: document.getElementById('name').value,
     phone: document.getElementById('phone').value,
     address: document.getElementById('address').value,
     postcode: document.getElementById('postcode').value,
-    date: document.getElementById('date').value,
-    time: document.getElementById('time').value,
+    date: document.getElementById('dateInput').value,
+    time: document.getElementById('timeInput').value,
     services: selected
-  }
+  };
 
-  const res = await fetch('/bookings',{
+  const res = await fetch('/bookings', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(data)
-  })
+  });
 
-  const out = await res.json()
+  const out = await res.json();
 
   if(res.ok){
     const msg =
-      `Booking Request\\n\\nName: ${data.name}\\nPhone: ${data.phone}\\nDate: ${data.date}\\nTime: ${data.time}`
+      `Hi LCM Oven & Carpet Cleaning, I have just made a booking request.\\n\\n` +
+      `Name: ${data.name}\\nPhone: ${data.phone}\\nAddress: ${data.address}\\n` +
+      `Postcode: ${data.postcode}\\nDate: ${data.date}\\nTime: ${data.time}`;
 
-    const url = `https://wa.me/447565873770?text=${encodeURIComponent(msg)}`
-
-    result.innerText = "Opening WhatsApp..."
-    setTimeout(()=> window.open(url,"_blank"), 800)
+    document.getElementById('result').innerText = 'Booking received. Opening WhatsApp...';
+    setTimeout(() => {
+      window.open(`https://wa.me/447565873770?text=${encodeURIComponent(msg)}`, '_blank');
+    }, 800);
   } else {
-    result.innerText = out.error
+    document.getElementById('result').innerText = out.error || 'Booking failed';
   }
 }
 
-loadServices()
+loadServices();
 </script>
 
 </body>

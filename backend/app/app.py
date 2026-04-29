@@ -163,7 +163,8 @@ async function loadServices(){
   const res = await fetch('/services');
   services = await res.json();
 
-  document.getElementById('services').innerHTML = services.map(s => `
+  document.getElementById('services').innerHTML =
+  services.map(s => `
     <label class="service">
       <input type="checkbox" value="${s.id}" onchange="updateServices()">
       ${s.name} - £${s.price}
@@ -225,14 +226,22 @@ async function book(){
   const out = await res.json();
 
   if(res.ok){
-    const msg =
-      `Hi LCM Oven & Carpet Cleaning, I have just made a booking request.\\n\\n` +
-      `Name: ${data.name}\\nPhone: ${data.phone}\\nAddress: ${data.address}\\n` +
-      `Postcode: ${data.postcode}\\nDate: ${data.date}\\nTime: ${data.time}`;
+  const chosen = services.filter(s => selected.includes(s.id));
+
+const msg =
+  `Hi LCM Oven & Carpet Cleaning 👋\n\n` +
+  `New booking request:\n\n` +
+  `Name: ${data.name}\n` +
+  `Phone: ${data.phone}\n` +
+  `Address: ${data.address}\n` +
+  `Postcode: ${data.postcode}\n\n` +
+  `Date: ${data.date}\n` +
+  `Time: ${data.time}\n\n` +
+  `Services:\n${chosen.map(s => "- " + s.name).join("\n")}`;
 
     document.getElementById('result').innerText = 'Booking received. Opening WhatsApp...';
     setTimeout(() => {
-      window.open(`https://wa.me/447565873770?text=${encodeURIComponent(msg)}`, '_blank');
+      window.open(`https://wa.me/447565873770?text=${encodeURIComponent(msg)}`, "_blank");
     }, 800);
   } else {
     document.getElementById('result').innerText = out.error || 'Booking failed';

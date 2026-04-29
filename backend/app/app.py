@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, date, time, timedelta
 import sqlite3
+import os
 
 app = Flask(__name__)
 
@@ -22,7 +23,6 @@ SERVICES = [
     {"id": 8, "category": "Carpet Cleaning", "name": "2 rooms carpet", "price": 75, "duration": 90},
     {"id": 9, "category": "Carpet Cleaning", "name": "3 rooms carpet", "price": 95, "duration": 90},
     {"id": 10, "category": "Carpet Cleaning", "name": "Stairs & landing", "price": 50, "duration": 60},
-    {"id": 11, "category": "Carpet Cleaning", "name": "Stairs & landing with another room", "price": 30, "duration": 60},
 
     {"id": 12, "category": "Sofa Cleaning", "name": "Arm chair", "price": 30, "duration": 60},
     {"id": 13, "category": "Sofa Cleaning", "name": "2 seater sofa", "price": 50, "duration": 60},
@@ -31,9 +31,7 @@ SERVICES = [
 
     {"id": 16, "category": "White Goods", "name": "Washing machine", "price": 30, "duration": 30},
     {"id": 17, "category": "White Goods", "name": "Dishwasher", "price": 30, "duration": 30},
-    {"id": 18, "category": "White Goods", "name": "Washing machine + dishwasher", "price": 50, "duration": 60},
 ]
-
 
 def init_db():
     conn = sqlite3.connect("bookings.db")
@@ -57,704 +55,105 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 init_db()
-
-
-def get_day_bookings(selected_date):
-    conn = sqlite3.connect("bookings.db")
-    c = conn.cursor()
-    c.execute("SELECT start_time, end_time FROM bookings WHERE date=?", (selected_date,))
-    rows = c.fetchall()
-    conn.close()
-
-    return [
-        {
-            "start": datetime.strptime(row[0], "%H:%M").time(),
-            "end": datetime.strptime(row[1], "%H:%M").time(),
-        }
-        for row in rows
-    ]
-
-
-def generate_slots(duration, selected_date):
-    slots = []
-    current = datetime.combine(selected_date, WORK_START)
-
-    while True:
-        end = current + timedelta(minutes=duration)
-        if end.time() > WORK_END:
-            break
-
-        slots.append(current.time().strftime("%H:%M"))
-        current += timedelta(minutes=15)
-
-    return slots
-
-
-def is_available(start_time_value, duration, bookings):
-    start_dt = datetime.combine(date.today(), start_time_value)
-    end_dt = start_dt + timedelta(minutes=duration)
-
-    for booking in bookings:
-        b_start = datetime.combine(date.today(), booking["start"])
-        b_end = datetime.combine(date.today(), booking["end"])
-
-        if start_dt < b_end and end_dt > b_start:
-            return False
-
-    return True
-
-
-@app.route("/availability")
-def availability():
-    date_str = request.args.get("date")
-    duration = int(request.args.get("duration", 60))
-
-    try:
-        selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except Exception:
-        return jsonify([])
-
-    if selected_date < LAUNCH_DATE or selected_date.weekday() > 4:
-        return jsonify([])
-
-    bookings = get_day_bookings(date_str)
-    slots = generate_slots(duration, selected_date)
-
-    available = []
-    for slot in slots:
-        slot_time = datetime.strptime(slot, "%H:%M").time()
-        if is_available(slot_time, duration, bookings):
-            available.append(slot)
-
-    return jsonify(available)
-
 
 @app.route("/services")
 def services():
     return jsonify(SERVICES)
 
-
 @app.route("/bookings", methods=["POST"])
 def bookings():
-    data = request.json or {}
-
-    if not data.get("name") or not data.get("phone") or not data.get("address") or not data.get("postcode"):
-        return jsonify({"error": "Please enter your name, phone number, address and postcode"}), 400
-
-    if not data.get("date") or not data.get("time"):
-        return jsonify({"error": "Please select a date and available time slot"}), 400
+    data = request.json
 
     selected = [s for s in SERVICES if s["id"] in data.get("services", [])]
 
-    if not selected:
-        return jsonify({"error": "Please select at least one service"}), 400
-
-    try:
-        selected_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
-        selected_time = datetime.strptime(data["time"], "%H:%M").time()
-    except Exception:
-        return jsonify({"error": "Invalid date or time"}), 400
-
-    if selected_date < LAUNCH_DATE:
-        return jsonify({"error": "Online bookings start from 18 August 2025"}), 400
-
-    if selected_date.weekday() > 4:
-        return jsonify({"error": "Bookings are Monday to Friday only"}), 400
-
-    duration = sum(s["duration"] for s in selected)
     price = sum(s["price"] for s in selected)
+    duration = sum(s["duration"] for s in selected)
 
     if price < MINIMUM_BOOKING:
         return jsonify({"error": "Minimum booking is £50"}), 400
 
-    current_bookings = get_day_bookings(data["date"])
-
-    if not is_available(selected_time, duration, current_bookings):
-        return jsonify({"error": "That time slot has just been taken. Please choose another time."}), 400
-
-    start_dt = datetime.combine(selected_date, selected_time)
-    end_dt = start_dt + timedelta(minutes=duration)
-
-    if end_dt.time() > WORK_END:
-        return jsonify({"error": "This booking would finish after 2pm. Please choose an earlier time."}), 400
-
-    services_text = ", ".join(s["name"] for s in selected)
+    start = datetime.strptime(data["time"], "%H:%M")
+    end = start + timedelta(minutes=duration)
 
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
     c.execute("""
-        INSERT INTO bookings (
-            name, phone, address, postcode, date, start_time, end_time,
-            duration, price, services, notes
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bookings
+        (name, phone, address, postcode, date, start_time, end_time, duration, price, services)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data["name"],
         data["phone"],
         data["address"],
-        data["postcode"].upper().strip(),
+        data["postcode"],
         data["date"],
         data["time"],
-        end_dt.strftime("%H:%M"),
+        end.strftime("%H:%M"),
         duration,
         price,
-        services_text,
-        data.get("notes", "")
+        ", ".join(s["name"] for s in selected)
     ))
-
     conn.commit()
     conn.close()
 
-    return jsonify({
-        "ok": True,
-        "booking": {
-            "name": data["name"],
-            "phone": data["phone"],
-            "address": data["address"],
-            "postcode": data["postcode"].upper().strip(),
-            "date": data["date"],
-            "start_time": data["time"],
-            "end_time": end_dt.strftime("%H:%M"),
-            "total_price": price,
-            "total_duration": duration,
-            "services": services_text,
-        }
-    })
-
+    return jsonify({"ok": True})
 
 @app.route("/")
 def home():
-    return """
-<!DOCTYPE html>
-<html>
-<head>
-  <title>LCM Oven & Carpet Cleaning</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+    return "<h1>LCM Booking Running ✅</h1>"
 
-  <style>
-    :root{
-      --blue:#0e3a67;
-      --blue2:#15538f;
-      --gold:#d4af37;
-      --bg:#f4f8fc;
-      --text:#102a43;
-      --muted:#64748b;
-      --card:#ffffff;
-    }
-
-    *{box-sizing:border-box}
-
-    body{
-      margin:0;
-      font-family:Arial, sans-serif;
-      background:var(--bg);
-      color:var(--text);
-    }
-
-    header{
-      background:linear-gradient(135deg,var(--blue),var(--blue2));
-      color:white;
-      padding:34px 18px;
-      text-align:center;
-    }
-
-    header h1{
-      margin:0;
-      font-size:30px;
-      line-height:1.15;
-    }
-
-    .tagline{
-      color:var(--gold);
-      font-weight:bold;
-      margin:8px 0;
-    }
-
-    .header-actions{
-      display:flex;
-      justify-content:center;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:18px;
-    }
-
-    .btn, button{
-      display:inline-block;
-      width:100%;
-      padding:13px 15px;
-      border-radius:12px;
-      border:0;
-      font-size:16px;
-      font-weight:bold;
-      cursor:pointer;
-      text-align:center;
-      text-decoration:none;
-    }
-
-    .btn-gold, button{
-      background:var(--gold);
-      color:#111827;
-    }
-
-    .btn-light{
-      background:white;
-      color:var(--blue);
-    }
-
-    .btn-whatsapp{
-      background:#25D366;
-      color:white;
-      margin-top:10px;
-      width:100%;
-    }
-
-    main{
-      max-width:1050px;
-      margin:auto;
-      padding:18px;
-    }
-
-    .grid{
-      display:grid;
-      grid-template-columns:1fr;
-      gap:18px;
-    }
-
-    .card{
-      background:var(--card);
-      border-radius:18px;
-      padding:18px;
-      box-shadow:0 8px 24px rgba(15, 23, 42, 0.08);
-    }
-
-    h2{
-      margin-top:0;
-      color:var(--blue);
-    }
-
-    h3{
-      color:var(--blue);
-      margin-top:22px;
-      border-bottom:2px solid var(--gold);
-      padding-bottom:6px;
-    }
-
-    .note{
-      color:var(--muted);
-      font-size:13px;
-      margin:4px 0 10px;
-    }
-
-    input, textarea, select{
-      width:100%;
-      padding:13px;
-      border-radius:12px;
-      border:1px solid #cbd5e1;
-      margin:6px 0;
-      font-size:15px;
-      background:white;
-    }
-
-    textarea{
-      min-height:85px;
-    }
-
-    .service{
-      display:flex;
-      gap:10px;
-      align-items:flex-start;
-      padding:11px;
-      background:#f8fafc;
-      border:1px solid #e2e8f0;
-      border-radius:12px;
-      margin:8px 0;
-    }
-
-    .service input{
-      width:auto;
-      margin-top:3px;
-    }
-
-    .service-title{
-      font-weight:bold;
-    }
-
-    .service-meta{
-      color:var(--muted);
-      font-size:13px;
-      margin-top:3px;
-    }
-
-    .summary{
-      background:#f8fafc;
-      border:1px solid #e2e8f0;
-      border-radius:14px;
-      padding:14px;
-      margin-top:14px;
-    }
-
-    #result{
-      font-weight:bold;
-      margin-top:12px;
-      color:var(--blue);
-      line-height:1.4;
-    }
-
-    .success{color:#166534!important}
-    .error{color:#b91c1c!important}
-
-    footer{
-      text-align:center;
-      padding:28px 18px;
-      color:var(--muted);
-      font-size:14px;
-    }
-
-    @media(min-width:850px){
-      header h1{font-size:42px}
-      .grid{grid-template-columns:1.15fr .85fr}
-      .btn, button{width:auto}
-      .wide-button{width:100%}
-    }
-  </style>
-</head>
-
-<body>
-
-<header>
-  <h1>LCM Oven & Carpet Cleaning</h1>
-  <p class="tagline">Let Me Do The Dirty Work</p>
-  <p>Professional oven, carpet, sofa and white goods cleaning</p>
-
-  <div class="header-actions">
-    <a class="btn btn-gold" href="#booking">Book Online</a>
-    <a class="btn btn-light" href="https://wa.me/447565873770" target="_blank">WhatsApp Us</a>
-  </div>
-</header>
-
-<main>
-  <div class="grid">
-    <section class="card" id="booking">
-      <h2>Book a Clean</h2>
-      <p class="note">
-        Bookings are Monday to Friday, 8:15am to 2:00pm.<br>
-        <strong>Minimum booking: £50</strong>
-      </p>
-
-      <input id="name" placeholder="Full name">
-      <input id="phone" placeholder="Phone number">
-      <input id="address" placeholder="Address">
-      <input id="postcode" placeholder="Postcode">
-      <textarea id="notes" placeholder="Notes / tailored booking details"></textarea>
-
-      <h3>Choose Services</h3>
-
-      <h4>Oven Cleaning</h4>
-      <div id="ovens"></div>
-
-      <h4>Carpet Cleaning</h4>
-      <p class="note">Carpet prices may vary depending on size.</p>
-      <div id="carpets"></div>
-
-      <h4>Sofa Cleaning</h4>
-      <p class="note">Sofa prices may vary depending on size.</p>
-      <div id="sofas"></div>
-
-      <h4>White Goods</h4>
-      <div id="whitegoods"></div>
-
-      <h3>Choose Date & Time</h3>
-      <input id="date" type="date" onchange="loadTimes()">
-
-      <select id="time">
-        <option value="">Select services and date first</option>
-      </select>
-
-      <div class="summary">
-        <strong>Booking Summary</strong>
-        <p id="summaryText">Select services to see total.</p>
-      </div>
-
-      <button class="wide-button" type="button" onclick="book()">Book Now</button>
-
-      <a href="https://wa.me/447565873770" target="_blank" style="text-decoration:none;">
-        <button class="wide-button" type="button">Message on WhatsApp</button>
-      </a>
-
-      <button class="wide-button" type="button" onclick="window.print()">Print Booking</button>
-
-      <p id="result"></p>
-    </section>
-
-    <aside class="card">
-      <h2>Why choose LCM?</h2>
-      <p><strong>DBS checked</strong></p>
-      <p><strong>Fully insured</strong></p>
-      <p><strong>11 years experience</strong></p>
-      <p><strong>Eco friendly oven cleaning</strong></p>
-
-      <h3>Contact</h3>
-      <p><strong>Phone / WhatsApp</strong><br>07565 873770</p>
-      <p><strong>Email</strong><br>lcmovencleaning@hotmail.com</p>
-
-      <h3>Socials</h3>
-      <p>
-        <a href="https://www.facebook.com/share/17FSCs5xqU/" target="_blank">Facebook</a><br>
-        <a href="https://www.instagram.com/lcmovencleaning?igsh=MW44NmlpOGRiNW9rMQ==" target="_blank">Instagram</a>
-      </p>
-
-      <h3>Admin</h3>
-      <p><a href="/admin">Admin Dashboard</a></p>
-    </aside>
-  </div>
-</main>
-<footer>
-  © LCM Oven & Carpet Cleaning
-</footer>
-
-<script>
-let allServices = [];
-let selectedServices = [];
-
-async function loadServices(){
-  const res = await fetch('/services');
-  allServices = await res.json();
-
-  const groups = {
-    ovens: allServices.filter(s => s.category === "Oven Cleaning"),
-    carpets: allServices.filter(s => s.category === "Carpet Cleaning"),
-    sofas: allServices.filter(s => s.category === "Sofa Cleaning"),
-    whitegoods: allServices.filter(s => s.category === "White Goods"),
-  };
-
-  Object.keys(groups).forEach(id => {
-    document.getElementById(id).innerHTML = groups[id].map(s => `
-      <label class="service">
-        <input type="checkbox" value="${s.id}" onchange="updateServices()">
-        <span>
-          <span class="service-title">${s.name}</span><br>
-          <span class="service-meta">£${s.price} · approx ${s.duration} mins</span>
-        </span>
-      </label>
-    `).join('');
-  });
-}
-
-function updateServices(){
-  selectedServices = [...document.querySelectorAll('input[type=checkbox]:checked')]
-    .map(x => Number(x.value));
-
-  const chosen = allServices.filter(s => selectedServices.includes(s.id));
-  const totalPrice = chosen.reduce((sum, s) => sum + s.price, 0);
-  const totalDuration = chosen.reduce((sum, s) => sum + s.duration, 0);
-
-  document.getElementById('summaryText').innerText =
-    chosen.length === 0
-      ? "Select services to see total."
-      : `${chosen.length} service(s) selected · £${totalPrice} · approx ${totalDuration} mins`;
-
-  loadTimes();
-}
-
-async function loadTimes(){
-  const dateValue = document.getElementById('date').value;
-  const timeSelect = document.getElementById('time');
-
-  if(selectedServices.length === 0 || !dateValue){
-    timeSelect.innerHTML = '<option value="">Select services and date first</option>';
-    return;
-  }
-
-  const chosen = allServices.filter(s => selectedServices.includes(s.id));
-  const duration = chosen.reduce((sum, s) => sum + s.duration, 0);
-
-  const res = await fetch(`/availability?date=${dateValue}&duration=${duration}`);
-  const times = await res.json();
-
-  if(times.length === 0){
-    timeSelect.innerHTML = '<option value="">No available slots</option>';
-  } else {
-    timeSelect.innerHTML = times.map(t => `<option value="${t}">${t}</option>`).join('');
-  }
-}
-
-async function book(){
-  const result = document.getElementById('result');
-  result.className = "";
-  result.innerText = "Sending booking...";
-
-  const data = {
-    name: document.getElementById('name').value,
-    phone: document.getElementById('phone').value,
-    address: document.getElementById('address').value,
-    postcode: document.getElementById('postcode').value,
-    notes: document.getElementById('notes').value,
-    date: document.getElementById('date').value,
-    time: document.getElementById('time').value,
-    services: selectedServices
-  };
-
-  const res = await fetch('/bookings', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(data)
-  });
-
-  const out = await res.json();
-
-  if(res.ok){
-    result.className = "success";
-
-    const message =
-      `Hi LCM Oven & Carpet Cleaning, I have just made a booking request.\\n\\n` +
-      `Name: ${data.name}\\n` +
-      `Phone: ${data.phone}\\n` +
-      `Address: ${data.address}\\n` +
-      `Postcode: ${data.postcode}\\n` +
-      `Date: ${data.date}\\n` +
-      `Time: ${data.time}\\n` +
-      `Services: ${out.booking.services}\\n` +
-      `Total: £${out.booking.total_price}\\n` +
-      `Estimated finish time: ${out.booking.end_time}`;
-
-    const whatsappUrl = `https://wa.me/447565873770?text=${encodeURIComponent(message)}`;
-
-    result.innerHTML =
-      `Booking received. ${out.booking.services}. Total £${out.booking.total_price}. ` +
-      `Estimated finish time: ${out.booking.end_time}.<br><br>` +
-      `<a href="${whatsappUrl}" target="_blank" class="btn btn-whatsapp">Confirm booking on WhatsApp</a>`;
-
-    loadTimes();
-  } else {
-    result.className = "error";
-    result.innerText = out.error;
-  }
-}
-
-loadServices();
-</script>
-
-</body>
-</html>
-    """
-
-
-# =========================
-# ADMIN DASHBOARD
-# =========================
 @app.route("/admin")
 def admin():
-    password = 
-request.args.get("password")
+    password = request.args.get("password")
 
     if password != ADMIN_PASSWORD:
         return """
         <html>
         <body style="font-family:Arial;padding:20px">
-          <h2>LCM Admin Login</h2>
-          <input id="pw" type="password" placeholder="Password">
-          <button onclick="location.href='/admin?password=' + document.getElementById('pw').value">
-            Login
-          </button>
+            <h2>LCM Admin Login</h2>
+            <input id="pw" type="password">
+            <button onclick="location.href='/admin?password=' + document.getElementById('pw').value">
+                Login
+            </button>
         </body>
         </html>
         """
 
-    selected_date = request.args.get("date", "")
-
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
-
-    if selected_date:
-        c.execute("""
-            SELECT name, phone, address, postcode, date, start_time, end_time, duration, price, services, notes
-            FROM bookings
-            WHERE date=?
-            ORDER BY start_time
-        """, (selected_date,))
-    else:
-        c.execute("""
-            SELECT name, phone, address, postcode, date, start_time, end_time, duration, price, services, notes
-            FROM bookings
-            ORDER BY date, start_time
-        """)
-
+    c.execute("SELECT * FROM bookings ORDER BY date, start_time")
     rows = c.fetchall()
     conn.close()
 
     timeline = ""
-current_time = WORK_START
+    current_time = WORK_START
 
-for b in rows:
-    start = datetime.strptime(b[5], "%H:%M").time()
+    for b in rows:
+        start = datetime.strptime(b[6], "%H:%M").time()
 
-    # gap before booking
-    if start > current_time:
+        if start > current_time:
+            timeline += f"<div>Free: {current_time} → {start}</div>"
+
         timeline += f"""
-        <div style="padding:10px;margin:8px 0;background:#e2e8f0;border-radius:8px;">
-            Free slot: {current_time.strftime('%H:%M')} → {start.strftime('%H:%M')}
+        <div style='background:white;padding:10px;margin:10px;border-left:5px solid gold'>
+            <b>{b[6]} - {b[7]}</b><br>
+            {b[1]}<br>
+            {b[3]}<br>
+            £{b[9]}
         </div>
         """
 
-    phone_clean = b[1].replace(" ", "")
-
-    timeline += f"""
-    <div style="background:white;padding:15px;margin:10px 0;border-radius:12px;border-left:6px solid #d4af37">
-      <h3>{b[5]} - {b[6]} | {b[0]}</h3>
-      <p><strong>Address:</strong> {b[2]}</p>
-      <p><strong>Postcode:</strong> {b[3]}</p>
-      <p><strong>Services:</strong> {b[9]}</p>
-      <p><strong>Total:</strong> £{b[8]}</p>
-
-      <a href="https://wa.me/{phone_clean}" target="_blank"
-         style="background:#25D366;color:white;padding:8px 12px;border-radius:6px;text-decoration:none;">
-         WhatsApp
-      </a>
-    </div>
-    """
-
-    current_time = datetime.strptime(b[6], "%H:%M").time()
-
-# gap at end of day
-if current_time < WORK_END:
-    timeline += f"""
-    <div style="padding:10px;margin:8px 0;background:#e2e8f0;border-radius:8px;">
-        Free slot: {current_time.strftime('%H:%M')} → {WORK_END.strftime('%H:%M')}
-    </div>
-    """
+        current_time = datetime.strptime(b[7], "%H:%M").time()
 
     return f"""
     <html>
-    <head>
-      <title>LCM Admin</title>
-      <style>
-        body{{font-family:Arial;background:#f4f8fc;margin:0}}
-        header{{background:#0e3a67;color:white;padding:20px;text-align:center}}
-        main{{max-width:1000px;margin:auto;padding:20px}}
-        .booking{{background:white;padding:15px;margin:10px 0;border-radius:12px}}
-        .whatsapp{{background:#25D366;color:white;padding:8px 12px;border-radius:6px;text-decoration:none}}
-      </style>
-    </head>
     <body>
-      <header><h1>LCM Admin Dashboard</h1></header>
-      <main>
-        <form>
-          <input type="hidden" name="password" value="{ADMIN_PASSWORD}">
-          <input type="date" name="date" value="{selected_date}">
-          <button type="submit">Filter</button>
-        </form>
-        {timeline or "<p>No bookings for this day</p>"}
-      </main>
+        <h1>Admin Dashboard</h1>
+        {timeline}
     </body>
     </html>
     """
-
-
-if __name__ == "__main__":
-    app.run()
-import os
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))

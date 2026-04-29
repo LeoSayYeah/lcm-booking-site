@@ -226,8 +226,29 @@ async function loadServices(){
 function update(){
   selected = [...document.querySelectorAll('input[type=checkbox]:checked')]
     .map(x => Number(x.value))
-}
 
+  loadTimes()
+}
+}
+async function loadTimes(){
+  const date = document.getElementById('date').value
+  const chosen = services.filter(s => selected.includes(s.id))
+  const duration = chosen.reduce((total, s) => total + s.duration, 0)
+
+  if(!date || duration === 0){
+    document.getElementById('time').innerHTML =
+      '<option value="">Select services and date first</option>'
+    return
+  }
+
+  const res = await fetch(`/availability?date=${date}&duration=${duration}`)
+  const times = await res.json()
+
+  document.getElementById('time').innerHTML =
+    times.length
+      ? times.map(t => `<option value="${t}">${t}</option>`).join('')
+      : '<option value="">No available slots</option>'
+}
 async function book(){
   const result = document.getElementById('result')
 

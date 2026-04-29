@@ -64,12 +64,17 @@ def home():
 
 @app.route("/admin")
 def admin():
+    selected_date = request.args.get("date", date.today().isoformat())
+
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM bookings ORDER BY date, start_time")
-    rows = c.fetchall()
-    conn.close()
-    return render_template("admin.html", rows=rows)
+    c.execute("""
+        SELECT id, name, phone, address, postcode, date, start_time, end_time, price, services
+        FROM bookings
+        WHERE date=?
+        ORDER BY start_time
+    """, (selected_date,))
+    rows = c
 
 @app.route("/services")
 def services():

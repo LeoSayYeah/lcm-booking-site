@@ -724,7 +724,7 @@ if current_time < WORK_END:
     </div>
     """
 
-        return f"""
+    return f"""
     <html>
     <head>
       <title>LCM Admin</title>

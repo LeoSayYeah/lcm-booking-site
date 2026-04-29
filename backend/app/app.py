@@ -101,7 +101,170 @@ def bookings():
 
 @app.route("/")
 def home():
-    return "<h1>LCM Booking Running ✅</h1>"
+    return """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LCM Oven & Carpet Cleaning</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body{
+      font-family:Arial;
+      margin:0;
+      background:#f4f8fc;
+    }
+
+    header{
+      background:#0e3a67;
+      color:white;
+      padding:25px;
+      text-align:center;
+    }
+
+    h1{margin:0}
+
+    .container{
+      max-width:900px;
+      margin:auto;
+      padding:20px;
+    }
+
+    .card{
+      background:white;
+      padding:20px;
+      border-radius:12px;
+      margin-bottom:20px;
+    }
+
+    input, select, textarea{
+      width:100%;
+      padding:12px;
+      margin:6px 0;
+      border-radius:8px;
+      border:1px solid #ccc;
+    }
+
+    button{
+      background:#d4af37;
+      border:none;
+      padding:12px;
+      border-radius:10px;
+      font-weight:bold;
+      width:100%;
+      margin-top:10px;
+    }
+
+    .service{
+      padding:10px;
+      border:1px solid #ddd;
+      margin:5px 0;
+      border-radius:8px;
+    }
+
+    #result{
+      margin-top:10px;
+      font-weight:bold;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>LCM Oven & Carpet Cleaning</h1>
+  <p>Book your clean online</p>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <input id="name" placeholder="Full name">
+    <input id="phone" placeholder="Phone number">
+    <input id="address" placeholder="Address">
+    <input id="postcode" placeholder="Postcode">
+  </div>
+
+  <div class="card">
+    <h3>Services</h3>
+    <div id="services"></div>
+  </div>
+
+  <div class="card">
+    <h3>Date & Time</h3>
+    <input id="date" type="date">
+    <input id="time" type="time">
+  </div>
+
+  <div class="card">
+    <button onclick="book()">Book Now</button>
+    <p id="result"></p>
+  </div>
+
+</div>
+
+<script>
+let services = []
+let selected = []
+
+async function loadServices(){
+  const res = await fetch('/services')
+  services = await res.json()
+
+  document.getElementById('services').innerHTML =
+    services.map(s => `
+      <div class="service">
+        <input type="checkbox" value="${s.id}" onchange="update()">
+        ${s.name} (£${s.price})
+      </div>
+    `).join('')
+}
+
+function update(){
+  selected = [...document.querySelectorAll('input[type=checkbox]:checked')]
+    .map(x => Number(x.value))
+}
+
+async function book(){
+  const result = document.getElementById('result')
+
+  const data = {
+    name: document.getElementById('name').value,
+    phone: document.getElementById('phone').value,
+    address: document.getElementById('address').value,
+    postcode: document.getElementById('postcode').value,
+    date: document.getElementById('date').value,
+    time: document.getElementById('time').value,
+    services: selected
+  }
+
+  const res = await fetch('/bookings',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  })
+
+  const out = await res.json()
+
+  if(res.ok){
+    const msg =
+      `Booking Request\\n\\nName: ${data.name}\\nPhone: ${data.phone}\\nDate: ${data.date}\\nTime: ${data.time}`
+
+    const url = `https://wa.me/447565873770?text=${encodeURIComponent(msg)}`
+
+    result.innerText = "Opening WhatsApp..."
+    setTimeout(()=> window.open(url,"_blank"), 800)
+  } else {
+    result.innerText = out.error
+  }
+}
+
+loadServices()
+</script>
+
+</body>
+</html>
+    """
 
 @app.route("/admin")
 def admin():

@@ -5,65 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <style>
+    :root{
+      --blue:#0e3a67;
+      --gold:#d4af37;
+      --bg:#f4f8fc;
+    }
+
     body{
       font-family: Arial;
-      background:#f4f8fc;
+      background: var(--bg);
       margin:0;
     }
 
+    header{
+      background:var(--blue);
+      color:white;
+      padding:20px;
+      text-align:center;
+    }
+
     .wrap{
-      max-width:600px;
+      max-width:700px;
       margin:auto;
       padding:15px;
     }
 
     .card{
       background:white;
-      padding:15px;
-      border-radius:12px;
+      padding:18px;
+      border-radius:14px;
       margin-bottom:15px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.08);
     }
 
-    h2{color:#0e3a67}
+    h2{
+      color:var(--blue);
+      margin-top:0;
+    }
 
-    input,select,textarea{
+    input, select, textarea{
       width:100%;
       padding:12px;
       margin:6px 0;
-      border-radius:8px;
+      border-radius:10px;
       border:1px solid #ccc;
+      font-size:15px;
     }
+
+    textarea{min-height:80px;}
 
     button{
       width:100%;
-      padding:14px;
+      padding:15px;
       border:0;
-      border-radius:10px;
-      background:#d4af37;
+      border-radius:12px;
+      background:var(--gold);
       font-weight:bold;
       font-size:16px;
+      margin-top:10px;
     }
 
     .service{
-      padding:10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:12px;
       border:1px solid #eee;
+      border-radius:10px;
       margin:6px 0;
-      border-radius:8px;
+      background:#fafafa;
     }
+
+    .service input{
+      width:auto;
+      transform:scale(1.2);
+    }
+
+    #result{
+      font-weight:bold;
+      margin-top:12px;
+    }
+
+    .success{color:green;}
+    .error{color:red;}
   </style>
 </head>
 
 <body>
 
+<header>
+  <h1>LCM Oven & Carpet Cleaning</h1>
+  <p>Book your clean online</p>
+</header>
+
 <div class="wrap">
 
   <div class="card">
-    <h2>Book a Clean</h2>
+    <h2>Customer Details</h2>
 
     <input id="name" placeholder="Full name">
     <input id="phone" placeholder="Phone number">
     <input id="address" placeholder="Address">
     <input id="postcode" placeholder="Postcode">
+    <textarea id="notes" placeholder="Notes (optional)"></textarea>
   </div>
 
   <div class="card">
@@ -73,6 +117,7 @@
 
   <div class="card">
     <h2>Date & Time</h2>
+
     <input type="date" id="date" onchange="loadTimes()">
 
     <select id="time">
@@ -99,13 +144,13 @@ async function loadServices(){
   document.getElementById('services').innerHTML =
     services.map(s => `
       <label class="service">
+        <span>${s.name} - £${s.price}</span>
         <input type="checkbox" value="${s.id}" onchange="updateServices()">
-        ${s.name} - £${s.price}
       </label>
     `).join('');
 }
 
-// UPDATE SELECTED SERVICES
+// UPDATE SERVICES
 function updateServices(){
   selected = Array.from(document.querySelectorAll('input[type=checkbox]:checked'))
     .map(x => Number(x.value));
@@ -113,7 +158,7 @@ function updateServices(){
   loadTimes();
 }
 
-// LOAD AVAILABLE TIMES
+// LOAD TIME SLOTS
 async function loadTimes(){
   const date = document.getElementById('date').value;
 
@@ -127,24 +172,34 @@ async function loadTimes(){
   const res = await fetch(`/availability?date=${date}&duration=${duration}`);
   const times = await res.json();
 
-  document.getElementById('time').innerHTML =
-    times.map(t => `<option value="${t}">${t}</option>`).join('');
+  const select = document.getElementById('time');
+
+  if(times.length === 0){
+    select.innerHTML = `<option>No slots available</option>`;
+  } else {
+    select.innerHTML = times.map(t => `<option value="${t}">${t}</option>`).join('');
+  }
 }
 
-// BOOKING FUNCTION
+// BOOK FUNCTION
 async function book(){
+
+  const result = document.getElementById('result');
+  result.className = "";
+  result.innerText = "Sending booking...";
 
   const data = {
     name: name.value,
     phone: phone.value,
     address: address.value,
     postcode: postcode.value,
+    notes: notes.value,
     date: date.value,
     time: time.value,
     services: selected
   };
 
-  const res = await fetch('/bookings',{
+  const res = await fetch('/bookings', {   // IMPORTANT: your backend uses /bookings
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(data)
@@ -155,7 +210,9 @@ async function book(){
   if(res.ok){
 
     const msg =
-`New Booking:
+`Hi LCM 👋
+
+New booking:
 
 Name: ${data.name}
 Phone: ${data.phone}
@@ -168,7 +225,7 @@ Time: ${data.time}
 Services: ${out.booking.services}
 Total: £${out.booking.total_price}`;
 
-    // AUTO WHATSAPP OPEN
+    // AUTO WHATSAPP
     setTimeout(() => {
       window.open(
         "https://wa.me/447565873770?text=" + encodeURIComponent(msg),
@@ -176,14 +233,16 @@ Total: £${out.booking.total_price}`;
       );
     }, 800);
 
+    result.className = "success";
     result.innerText = "Booking saved. Opening WhatsApp...";
   }
   else{
+    result.className = "error";
     result.innerText = out.error;
   }
 }
 
-// LOAD ON START
+// INIT
 loadServices();
 
 </script>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LCM Oven & Carpet Cleaning</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body{
+      font-family: Arial;
+      background:#f4f8fc;
+      margin:0;
+    }
+
+    .wrap{
+      max-width:600px;
+      margin:auto;
+      padding:15px;
+    }
+
+    .card{
+      background:white;
+      padding:15px;
+      border-radius:12px;
+      margin-bottom:15px;
+    }
+
+    h2{color:#0e3a67}
+
+    input,select,textarea{
+      width:100%;
+      padding:12px;
+      margin:6px 0;
+      border-radius:8px;
+      border:1px solid #ccc;
+    }
+
+    button{
+      width:100%;
+      padding:14px;
+      border:0;
+      border-radius:10px;
+      background:#d4af37;
+      font-weight:bold;
+      font-size:16px;
+    }
+
+    .service{
+      padding:10px;
+      border:1px solid #eee;
+      margin:6px 0;
+      border-radius:8px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>Book a Clean</h2>
+
+    <input id="name" placeholder="Full name">
+    <input id="phone" placeholder="Phone number">
+    <input id="address" placeholder="Address">
+    <input id="postcode" placeholder="Postcode">
+  </div>
+
+  <div class="card">
+    <h2>Services</h2>
+    <div id="services"></div>
+  </div>
+
+  <div class="card">
+    <h2>Date & Time</h2>
+    <input type="date" id="date" onchange="loadTimes()">
+
+    <select id="time">
+      <option>Select services and date first</option>
+    </select>
+  </div>
+
+  <button onclick="book()">Book Now</button>
+
+  <p id="result"></p>
+
+</div>
+
+<script>
+
+let services = [];
+let selected = [];
+
+// LOAD SERVICES
+async function loadServices(){
+  const res = await fetch('/services');
+  services = await res.json();
+
+  document.getElementById('services').innerHTML =
+    services.map(s => `
+      <label class="service">
+        <input type="checkbox" value="${s.id}" onchange="updateServices()">
+        ${s.name} - £${s.price}
+      </label>
+    `).join('');
+}
+
+// UPDATE SELECTED SERVICES
+function updateServices(){
+  selected = Array.from(document.querySelectorAll('input[type=checkbox]:checked'))
+    .map(x => Number(x.value));
+
+  loadTimes();
+}
+
+// LOAD AVAILABLE TIMES
+async function loadTimes(){
+  const date = document.getElementById('date').value;
+
+  if(!date || selected.length === 0){
+    return;
+  }
+
+  const chosen = services.filter(s => selected.includes(s.id));
+  const duration = chosen.reduce((sum, s) => sum + s.duration, 0);
+
+  const res = await fetch(`/availability?date=${date}&duration=${duration}`);
+  const times = await res.json();
+
+  document.getElementById('time').innerHTML =
+    times.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+// BOOKING FUNCTION
+async function book(){
+
+  const data = {
+    name: name.value,
+    phone: phone.value,
+    address: address.value,
+    postcode: postcode.value,
+    date: date.value,
+    time: time.value,
+    services: selected
+  };
+
+  const res = await fetch('/bookings',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  });
+
+  const out = await res.json();
+
+  if(res.ok){
+
+    const msg =
+`New Booking:
+
+Name: ${data.name}
+Phone: ${data.phone}
+Address: ${data.address}
+Postcode: ${data.postcode}
+
+Date: ${data.date}
+Time: ${data.time}
+
+Services: ${out.booking.services}
+Total: £${out.booking.total_price}`;
+
+    // AUTO WHATSAPP OPEN
+    setTimeout(() => {
+      window.open(
+        "https://wa.me/447565873770?text=" + encodeURIComponent(msg),
+        "_blank"
+      );
+    }, 800);
+
+    result.innerText = "Booking saved. Opening WhatsApp...";
+  }
+  else{
+    result.innerText = out.error;
+  }
+}
+
+// LOAD ON START
+loadServices();
+
+</script>
+
+</body>
+</html>
